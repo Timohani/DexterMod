@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "dexter",
+  "version": "${version}",
+  "name": "dexter",
+  "description": "",
+  "authors": [
+    "Timohani"
+  ],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/dexter/dexter_mod_icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "fabric-datagen": [
+      "com.timohani.dexter.client.DexterModDataGenerator"
+    ],
+    "client": [
+      "com.timohani.dexter.client.DexterModClient"
+    ],
+    "main": [
+      "com.timohani.dexter.DexterMod"
+    ]
+  },
+  "mixins": [
+    "dexter.mixins.json",
+    {
+      "config": "dexter.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric-api": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}
