@@ -1,75 +1,99 @@
 package com.timohani.dexter.entity.custom;
 
 import net.minecraft.entity.EntityType;
-import net.minecraft.entity.ai.goal.LookAroundGoal;
-import net.minecraft.entity.ai.goal.LookAtEntityGoal;
-import net.minecraft.entity.ai.goal.SwimGoal;
-import net.minecraft.entity.ai.goal.WanderAroundGoal;
+import net.minecraft.entity.EquipmentSlot;
+import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.attribute.DefaultAttributeContainer;
 import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.damage.DamageSource;
-import net.minecraft.entity.passive.AnimalEntity;
-import net.minecraft.entity.passive.PassiveEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.text.Text;
 import net.minecraft.util.ActionResult;
+import net.minecraft.util.Arm;
 import net.minecraft.util.Hand;
 import net.minecraft.world.World;
+import software.bernie.geckolib.animatable.GeoEntity;
+import software.bernie.geckolib.animatable.instance.AnimatableInstanceCache;
+import software.bernie.geckolib.animation.*;
+import software.bernie.geckolib.util.GeckoLibUtil;
 
-public class CharacterEntity extends AnimalEntity {
-    private String characterName = "Неизвестный"; // временно
+import java.util.Collections;
 
-    public CharacterEntity(EntityType<? extends AnimalEntity> type, World world) {
-        super(type, world);
+public class CharacterEntity extends LivingEntity implements GeoEntity {
+
+    private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
+
+    public CharacterEntity(EntityType<? extends CharacterEntity> entityType, World world) {
+        super(entityType, world);
     }
 
     @Override
-    protected void initGoals() {
-        // Минимальное поведение: плавать, смотреть на игрока, гулять
-        this.goalSelector.add(0, new SwimGoal(this));
-        this.goalSelector.add(1, new LookAtEntityGoal(this, PlayerEntity.class, 8.0f));
-        this.goalSelector.add(2, new WanderAroundGoal(this, 0.6D));
-        this.goalSelector.add(3, new LookAroundGoal(this));
+    public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
+        controllers.add(new AnimationController<>(this, "movementController", 5, event -> {
+            if (event.isMoving()) {
+                event.getController().setAnimation(RawAnimation.begin().thenLoop("walk"));
+            } else {
+                event.getController().setAnimation(RawAnimation.begin().thenLoop("idle"));
+            }
+            return PlayState.CONTINUE;
+        }));
+
+        controllers.add(new AnimationController<>(this, "emotionController", 2, event -> {
+            if (event.getAnimatable().getAnimationState("happy_eyes")) { // Error
+                return event.setAndContinue(RawAnimation.begin().thenPlay("happy_eyes"));
+            }
+            return PlayState.STOP;
+        }));
     }
 
-    // Метод для установки имени (позже будем брать из реестра)
-    public void setCharacterName(String name) {
-        this.characterName = name;
+    public void triggerEmotion(String emotionName) {
+        this.triggerAnim("emotionController", emotionName);
     }
 
-    // При клике ПКМ показываем имя (позже заменим на диалог)
     @Override
-    public ActionResult interactMob(PlayerEntity player, Hand hand) {
+    public ActionResult interact(PlayerEntity player, Hand hand) {
         if (!this.getWorld().isClient) {
-            player.sendMessage(Text.literal("Это " + characterName), false);
+            this.triggerEmotion("happy_eyes");
         }
         return ActionResult.SUCCESS;
     }
 
-    // Обязательные методы AnimalEntity (пока заглушки)
-    @Override
-    public CharacterEntity createChild(ServerWorld world, PassiveEntity entity) {
-        return null;
-    }
 
     @Override
-    public boolean isBreedingItem(ItemStack stack) {
-        return false;
+    public AnimatableInstanceCache getAnimatableInstanceCache() {
+        return cache;
     }
 
+    // Атрибуты
     public static DefaultAttributeContainer.Builder createAttributes() {
-        return AnimalEntity.createMobAttributes()
+        return LivingEntity.createLivingAttributes()
                 .add(EntityAttributes.GENERIC_MAX_HEALTH, 20.0)
                 .add(EntityAttributes.GENERIC_MOVEMENT_SPEED, 0.25);
     }
 
+    // Полная неуязвимость
     @Override
     public boolean damage(DamageSource source, float amount) {
-        if (source.getAttacker() instanceof PlayerEntity) {
-            return false;
-        }
-        return super.damage(source, amount);
+        return false;
+    }
+
+    @Override
+    public Iterable<ItemStack> getArmorItems() {
+        return Collections.emptyList(); // Возвращаем пустой список вместо null
+    }
+
+    @Override
+    public ItemStack getEquippedStack(EquipmentSlot slot) {
+        return ItemStack.EMPTY; // Возвращаем пустой ItemStack вместо null
+    }
+
+    @Override
+    public void equipStack(EquipmentSlot slot, ItemStack stack) {
+        // Пустая реализация, так как персонаж не использует экипировку
+    }
+
+    @Override
+    public Arm getMainArm() {
+        return Arm.RIGHT; // Возвращаем правую руку по умолчанию вместо null
     }
 }
