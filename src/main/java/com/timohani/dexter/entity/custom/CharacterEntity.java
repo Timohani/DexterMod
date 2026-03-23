@@ -14,7 +14,10 @@ import net.minecraft.util.Hand;
 import net.minecraft.world.World;
 import software.bernie.geckolib.animatable.GeoEntity;
 import software.bernie.geckolib.animatable.instance.AnimatableInstanceCache;
-import software.bernie.geckolib.animation.*;
+import software.bernie.geckolib.animation.AnimatableManager;
+import software.bernie.geckolib.animation.AnimationController;
+import software.bernie.geckolib.animation.PlayState;
+import software.bernie.geckolib.animation.RawAnimation;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
 import java.util.Collections;
@@ -22,6 +25,8 @@ import java.util.Collections;
 public class CharacterEntity extends LivingEntity implements GeoEntity {
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
+    private boolean happy = false;
+    public boolean dead = false;
 
     public CharacterEntity(EntityType<? extends CharacterEntity> entityType, World world) {
         super(entityType, world);
@@ -39,25 +44,32 @@ public class CharacterEntity extends LivingEntity implements GeoEntity {
         }));
 
         controllers.add(new AnimationController<>(this, "emotionController", 2, event -> {
-            if (event.getAnimatable().getAnimationState("happy_eyes")) { // Error
-                return event.setAndContinue(RawAnimation.begin().thenPlay("happy_eyes"));
+            if (isHappy()) {
+                event.getController().setAnimation(RawAnimation.begin().thenPlayAndHold("happy_eyes"));
+            } else {
+                event.getController().setAnimation(RawAnimation.begin().thenPlayAndHold(""));
             }
-            return PlayState.STOP;
+            return PlayState.CONTINUE;
         }));
-    }
 
-    public void triggerEmotion(String emotionName) {
-        this.triggerAnim("emotionController", emotionName);
+        controllers.add(new AnimationController<>(this, "blinkController", 2, event -> {
+            if (!isDead()) {
+                event.getController().setAnimation(RawAnimation.begin().thenLoop("blink"));
+            } else {
+                event.getController().setAnimation(RawAnimation.begin().thenPlayAndHold(""));
+            }
+            return PlayState.CONTINUE;
+        }));
     }
 
     @Override
     public ActionResult interact(PlayerEntity player, Hand hand) {
-        if (!this.getWorld().isClient) {
-            this.triggerEmotion("happy_eyes");
+        if (this.getWorld().isClient) {
+            setHappy(!isHappy());
+            return ActionResult.SUCCESS;
         }
-        return ActionResult.SUCCESS;
+        return super.interact(player, hand);
     }
-
 
     @Override
     public AnimatableInstanceCache getAnimatableInstanceCache() {
@@ -95,5 +107,21 @@ public class CharacterEntity extends LivingEntity implements GeoEntity {
     @Override
     public Arm getMainArm() {
         return Arm.RIGHT; // Возвращаем правую руку по умолчанию вместо null
+    }
+
+    public boolean isHappy() {
+        return happy;
+    }
+
+    public void setHappy(boolean happy) {
+        this.happy = happy;
+    }
+
+    public boolean isDead() {
+        return dead;
+    }
+
+    public void setDead(boolean dead) {
+        this.dead = dead;
     }
 }
