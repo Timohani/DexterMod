@@ -1,20 +1,17 @@
 package com.timohani.dexter.entity.custom;
 
 import com.timohani.dexter.npc.NpcAction;
-import com.timohani.dexter.npc.WalkToAction;
+import com.timohani.dexter.npc.PlayAnimationAction;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.EquipmentSlot;
-import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.attribute.DefaultAttributeContainer;
 import net.minecraft.entity.attribute.EntityAttributes;
-import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Arm;
 import net.minecraft.util.Hand;
-import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import software.bernie.geckolib.animatable.GeoEntity;
 import software.bernie.geckolib.animatable.instance.AnimatableInstanceCache;
@@ -31,11 +28,11 @@ import java.util.Queue;
 public class CharacterEntity extends MobEntity implements GeoEntity {
 
     private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
-    private boolean happy = false;
     public boolean dead = false;
 
     private final Queue<NpcAction> actionQueue = new LinkedList<>();
     private NpcAction currentAction = null;
+
 
     public CharacterEntity(EntityType<? extends MobEntity> entityType, World world) {
         super(entityType, world);
@@ -52,14 +49,13 @@ public class CharacterEntity extends MobEntity implements GeoEntity {
             return PlayState.CONTINUE;
         }));
 
-        controllers.add(new AnimationController<>(this, "emotionController", 2, event -> {
-            if (isHappy()) {
-                event.getController().setAnimation(RawAnimation.begin().thenPlayAndHold("happy_eyes"));
-            } else {
-                event.getController().setAnimation(RawAnimation.begin().thenPlayAndHold(""));
-            }
+        // Предикат пустой, анимации будем запускать вручную
+        AnimationController<CharacterEntity> emotionController = new AnimationController<>(this, "emotionController", 2, event -> {
+            // Предикат пустой, анимации будем запускать вручную
             return PlayState.CONTINUE;
-        }));
+        });
+        emotionController.triggerableAnim("happy_eyes", RawAnimation.begin().thenPlayAndHold("happy_eyes"));
+        controllers.add(emotionController);
 
         controllers.add(new AnimationController<>(this, "blinkController", 2, event -> {
             if (!isDead()) {
@@ -74,16 +70,7 @@ public class CharacterEntity extends MobEntity implements GeoEntity {
     @Override
     public ActionResult interactMob(PlayerEntity player, Hand hand) {
         if (!this.getWorld().isClient) {
-            // Генерируем случайную точку в радиусе 10 блоков
-            BlockPos target = this.getBlockPos().add(
-                    (random.nextInt(21) - 10),
-                    0,
-                    (random.nextInt(21) - 10)
-            );
-            // Добавляем действие: идти со скоростью 1.0, максимальное время 200 тиков (10 сек)
-            scheduleAction(new WalkToAction(this, target, 0.7, 200));
-            // Можно добавить ожидание после ходьбы, например:
-            // scheduleAction(new WaitAction(this, 60));
+            scheduleAction(new PlayAnimationAction(this, "emotionController", "happy_eyes", -1));
         }
         return ActionResult.SUCCESS;
     }
@@ -108,6 +95,10 @@ public class CharacterEntity extends MobEntity implements GeoEntity {
     @Override
     public void tick() {
         super.tick();
+        if (!this.getWorld().isClient && this.getHealth() <= 0) {
+            System.out.println("Health <= 0, removing...");
+            this.remove(RemovalReason.KILLED);
+        }
         if (!this.getWorld().isClient) {
             updateActions();
         }
@@ -120,17 +111,12 @@ public class CharacterEntity extends MobEntity implements GeoEntity {
 
     // Атрибуты
     public static DefaultAttributeContainer.Builder createAttributes() {
-        return LivingEntity.createLivingAttributes()
+        return MobEntity.createMobAttributes()
                 .add(EntityAttributes.GENERIC_MAX_HEALTH, 20.0)
                 .add(EntityAttributes.GENERIC_MOVEMENT_SPEED, 0.25)
                 .add(EntityAttributes.GENERIC_FOLLOW_RANGE, 16.0);
     }
 
-    // Полная неуязвимость
-    @Override
-    public boolean damage(DamageSource source, float amount) {
-        return false;
-    }
 
     @Override
     public Iterable<ItemStack> getArmorItems() {
@@ -150,14 +136,6 @@ public class CharacterEntity extends MobEntity implements GeoEntity {
     @Override
     public Arm getMainArm() {
         return Arm.RIGHT; // Возвращаем правую руку по умолчанию вместо null
-    }
-
-    public boolean isHappy() {
-        return happy;
-    }
-
-    public void setHappy(boolean happy) {
-        this.happy = happy;
     }
 
     public boolean isDead() {
